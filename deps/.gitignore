@@ -1,5 +1,7 @@
 build
 usr
-src
 path.jl
+deps.jl
 *.tgz
+build.log
+src

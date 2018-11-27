@@ -1,54 +1,32 @@
-using Libdl
 
-if haskey(ENV, "PREBUILT_CI_BINARIES") && ENV["PREBUILT_CI_BINARIES"] == "1"
-    # Try to download pre-built binaries
-    if !isdir("build") || length(readdir("build")) == 0
-        os_tag = Sys.isapple() ? "osx" : "linux"
-        run(`rm -rf build/ src/`)
-        filename = "llvm-$(os_tag)-$(Base.libllvm_version).tgz"
-        run(`wget https://s3.amazonaws.com/julia-cxx/$filename`)
-        run(`tar xzf $filename --strip-components=1`)
-    end
-end
+include("build_LLVM.v6.0.0.jl")
 
-#in case we have specified the path to the julia installation
-#that contains the headers etc, use that
-BASE_JULIA_BIN = get(ENV, "BASE_JULIA_BIN", Sys.BINDIR)
-BASE_JULIA_SRC = get(ENV, "BASE_JULIA_SRC", joinpath(BASE_JULIA_BIN, "..", ".."))
 
-#write a simple include file with that path
-println("writing path.jl file")
-s = """
-const BASE_JULIA_BIN=$(sprint(show, BASE_JULIA_BIN))
-export BASE_JULIA_BIN
+mkpath("build")
+mkpath("usr/lib")
 
-const BASE_JULIA_SRC=$(sprint(show, BASE_JULIA_SRC))
-export BASE_JULIA_SRC
-"""
-f = open(joinpath(dirname(@__FILE__),"path.jl"), "w")
-write(f, s)
-close(f)
 
-println("Tuning for julia installation at $BASE_JULIA_BIN with sources possibly at $BASE_JULIA_SRC")
+CXX="g++"
 
-# Try to autodetect C++ ABI in use
-llvm_path = (Sys.isapple() && VersionNumber(Base.libllvm_version) >= v"3.8") ? "libLLVM" : "libLLVM-$(Base.libllvm_version)"
 
-llvm_lib_path = Libdl.dlpath(llvm_path)
-old_cxx_abi = findfirst("_ZN4llvm3sys16getProcessTripleEv", String(open(read, llvm_lib_path))) !== nothing
-old_cxx_abi && (ENV["OLD_CXX_ABI"] = "1")
+CXX_ABI_SETTING="-D_GLIBCXX_USE_CXX11_ABI=1"
+INCLUDE_DIRECTORIES = ["-I$(Sys.BINDIR)/../include", "-Iusr/include", "-IclangCodeGenHeaders"]
+LLVM_EXTRA_CPPFLAGS = "-DLLVM_NDEBUG"
 
-llvm_config_path = joinpath(BASE_JULIA_BIN,"..","tools","llvm-config")
-if isfile(llvm_config_path)
-    @info "Building julia source build"
-    ENV["LLVM_CONFIG"] = llvm_config_path
-    delete!(ENV,"LLVM_VER")
-else
-    @info "Building julia binary build"
-    ENV["LLVM_VER"] = Base.libllvm_version
-    ENV["JULIA_BINARY_BUILD"] = "1"
-    ENV["PATH"] = string(Sys.BINDIR,":",ENV["PATH"])
-end
+cmd = `$CXX $(CXX_ABI_SETTING) -fno-rtti -DLIBRARY_EXPORTS -fPIC -O0 -g -std=c++11 $INCLUDE_DIRECTORIES $LLVM_EXTRA_CPPFLAGS -c ../src/bootstrap.cpp -o build/bootstrap.o`
 
-make = Sys.isbsd() && !Sys.isapple() ? `gmake` : `make`
-run(`$make -j$(Sys.CPU_THREADS) -f BuildBootstrap.Makefile BASE_JULIA_BIN=$BASE_JULIA_BIN BASE_JULIA_SRC=$BASE_JULIA_SRC`)
+run(cmd)
+
+
+LINK_DIRECTORIES = ["-L$(Sys.BINDIR)/../lib", "-L$(Sys.BINDIR)/../lib/julia", "-Lusr/lib"]
+
+LINK_LIBS = ["-lclangFrontendTool", "-lclangBasic", "-lclangLex", "-lclangDriver", "-lclangFrontend", "-lclangParse", "-lclangAST", "-lclangASTMatchers", "-lclangSema", "-lclangAnalysis", "-lclangEdit", "-lclangRewriteFrontend", "-lclangRewrite", "-lclangSerialization", "-lclangStaticAnalyzerCheckers", "-lclangStaticAnalyzerCore", "-lclangStaticAnalyzerFrontend", "-lclangTooling", "-lclangToolingCore", "-lclangCodeGen", "-lclangARCMigrate", "-lclangFormat"]
+
+cmd = `$CXX -shared -fPIC $LINK_DIRECTORIES -ljulia -lLLVM -o usr/lib/libcxxffi.so -Wl,--whole-archive $LINK_LIBS -Wl,--no-whole-archive build/bootstrap.o`
+
+run(cmd)
+
+
+cmd = `$CXX -E -P $INCLUDE_DIRECTORIES -DJULIA ../src/cenumvals.jl.h`
+cenumvals = readstring(cmd)
+write("build/clang_constants.jl", cenumvals)
