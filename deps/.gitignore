@@ -6,3 +6,6 @@ deps.jl
 *.tgz
 build.log
 src
+lib
+logs
+manifests
