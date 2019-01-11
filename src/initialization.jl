@@ -372,13 +372,15 @@ function collectClangHeaders!(headers)
     ver = Base.VersionNumber(ver.major, ver.minor, ver.patch)
     baseclangdir = joinpath(BASE_JULIA_BIN,
         "../lib/clang/$ver/include/")
-    cxxclangdir = joinpath(dirname(@__FILE__),
-        "../deps/build/clang-$(Base.libllvm_version)/lib/clang/$ver/include")
     if isdir(baseclangdir)
         push!(headers, (baseclangdir, C_ExternCSystem))
     else
-        @assert isdir(cxxclangdir)
-        push!(headers, (cxxclangdir, C_ExternCSystem))
+        cxxclangdir1 = joinpath(dirname(@__FILE__), "../deps/usr/lib/clang/$ver/include/")
+        cxxclangdir2 = joinpath(dirname(@__FILE__), "../deps/usr/include")
+        @assert isdir(cxxclangdir1)
+        @assert isdir(cxxclangdir2)
+        push!(headers, (cxxclangdir1, C_ExternCSystem))
+        push!(headers, (cxxclangdir2, C_ExternCSystem))
     end
 end
 
