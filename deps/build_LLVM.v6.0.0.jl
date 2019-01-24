@@ -5,7 +5,7 @@ const verbose = "--verbose" in ARGS
 const prefix = Prefix(get([a for a in ARGS if a != "--verbose"], 1, joinpath(@__DIR__, "usr")))
 products = [
     LibraryProduct(prefix, String["libLLVM"], :libLLVM),
-    LibraryProduct(prefix, String["libLTO"], :libLTO),
+    # LibraryProduct(prefix, String["libLTO"], :libLTO),
     LibraryProduct(prefix, String["libclang"], :libclang),
     # ExecutableProduct(prefix, "llvm-config", :llvm_config),
     FileProduct(prefix, "tools/llvm-config", :llvm_config),

@@ -36,6 +36,20 @@ provides(Sources, URI("http://releases.llvm.org/$LLVM_VER/cfe-$LLVM_VER.src.tar.
 
 CXX="g++"
 
+@static if Sys.isapple()
+  SHLIB_EXT = "dylib"
+else
+  SHLIB_EXT = "so"
+end
+
+@static if Sys.isapple()
+  WHOLE_ARCHIVE = ["-Xlinker", "-all_load"]
+  NO_WHOLE_ARCHIVE = []
+else
+  WHOLE_ARCHIVE = "-Wl,--whole-archive"
+  NO_WHOLE_ARCHIVE = "-Wl,--no-whole-archive"
+end
+
 CLANG_SRC_DIR = "$(BinDeps.srcdir(cxxffi))/cfe-$LLVM_VER.src/lib/"
 
 CXX_ABI_SETTING="-D_GLIBCXX_USE_CXX11_ABI=1"
@@ -53,7 +67,7 @@ provides(BuildProcess,
         CreateDirectory("build")
         @build_steps begin
              `$CXX $(CXX_ABI_SETTING) -fno-rtti -DLIBRARY_EXPORTS -fPIC -O0 -g -std=c++11 $INCLUDE_DIRECTORIES $LLVM_EXTRA_CPPFLAGS -c ../src/bootstrap.cpp -o build/bootstrap.o`
-             `$CXX -shared -fPIC $LINK_DIRECTORIES -ljulia -lLLVM -o usr/lib/libcxxffi.so -Wl,--whole-archive $LINK_LIBS -Wl,--no-whole-archive build/bootstrap.o`
+             `$CXX -shared -fPIC $LINK_DIRECTORIES -ljulia -lLLVM -o usr/lib/libcxxffi.$(SHLIB_EXT) $WHOLE_ARCHIVE $LINK_LIBS $NO_WHOLE_ARCHIVE build/bootstrap.o`
              `$CXX -E -P $INCLUDE_DIRECTORIES -DJULIA ../src/cenumvals.jl.h -o build/clang_constants.jl`
         end
     end), cxxffi)
