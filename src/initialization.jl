@@ -221,7 +221,7 @@ nostdcxx = haskey(ENV,"CXXJL_NOSTDCXX")
     xcode_path *= "/"
 
     didfind = false
-    for path in ("usr/lib/c++/v1/","usr/include/c++/v1")
+    for path in (#="usr/lib/c++/v1/",=#"usr/include/c++/v1",)
         if isdir(joinpath(xcode_path,path))
             push!(headers, (joinpath(xcode_path,path), C_ExternCSystem))
             didfind = true
